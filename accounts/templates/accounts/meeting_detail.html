@@ -1,0 +1,187 @@
+{% extends "accounts/base.html" %}
+{% load tz dict_utils %}
+
+{% block header %}{{ meeting.title }}{% endblock %}
+
+{% block content %}
+  <style>
+    /* meeting-detail button styling */
+    .meeting-actions .toggle-btn {
+      padding: 0.5rem 1rem;
+      margin-right: 0.5rem;
+    }
+    /* filled “danger” buttons */
+    .meeting-actions .cancel-btn {
+      background: var(--danger);
+      border: 1px solid var(--danger);
+      color: white;
+    }
+    .meeting-actions .cancel-btn:hover {
+      filter: brightness(1.1);
+    }
+  </style>
+
+  <div class="meeting-details">
+    {# 1:1 invitee display #}
+    {% if meeting.customer %}
+      <p>
+        <strong>Customer:</strong> {{ meeting.customer }}
+        {% if meeting.customer.customer_email %}
+          — <a href="mailto:{{ meeting.customer.customer_email }}">
+              {{ meeting.customer.customer_email }}
+            </a>
+        {% endif %}
+      </p>
+    {% elif meeting.lead %}
+      <p>
+        <strong>Lead:</strong> {{ meeting.lead }}
+        — <a href="mailto:{{ meeting.lead.potential_customer_email }}">
+            {{ meeting.lead.potential_customer_email }}
+          </a>
+      </p>
+    {% endif %}
+
+    <p>
+      <strong>When:</strong>
+      {{ meeting.start_datetime|localtime|date:"F j, Y, P" }}
+      {% if meeting.end_datetime %}
+        – {{ meeting.end_datetime|localtime|date:"P" }}
+      {% endif %}
+    </p>
+    <p><strong>Where:</strong> {{ meeting.location }}</p>
+
+    {% if meeting.agenda %}
+      <p><strong>Agenda:</strong><br>{{ meeting.agenda|linebreaks }}</p>
+    {% endif %}
+
+    <p>
+      <strong>Departments:</strong>
+      {% for grp in meeting.groups.all %}
+        {{ grp.name }}{% if not forloop.last %}, {% endif %}
+      {% empty %}—{% endfor %}
+    </p>
+
+    <p><strong>Participants & RSVP:</strong></p>
+    <ul>
+      {% for usr in meeting.participants.all %}
+        <li>
+          {{ usr.get_full_name|default:usr.username }}
+          {% with rp=rsvp_map|get_item:usr.id %}
+            {% if rp %}
+              – <em>{{ rp.get_rsvp_status_display }}</em>
+              {% if rp.responded_at %}
+                ({{ rp.responded_at|localtime|date:"M j, H:i" }})
+              {% endif %}
+            {% endif %}
+          {% endwith %}
+        </li>
+      {% empty %}
+        <li>—</li>
+      {% endfor %}
+    </ul>
+
+    {# RSVP form for any invited user on a published meeting #}
+    {% if meeting.published and user in meeting.participants.all %}
+      <form id="rsvp-form">
+        {% csrf_token %}
+        <input type="hidden" name="rsvp" id="rsvp-input" value="">
+        <strong>Your RSVP:</strong><br>
+        <button type="button" data-rsvp="yes"   class="rsvp-btn">✅ Yes</button>
+        <button type="button" data-rsvp="no"    class="rsvp-btn">❌ No</button>
+        <button type="button" data-rsvp="maybe" class="rsvp-btn">❔ Maybe</button>
+      </form>
+    {% endif %}
+
+    {% if user.is_superuser %}
+      <div style="margin-top:1rem;">
+        <strong>RSVP Summary:</strong>
+        <ul>
+          <li>✅ Yes: {{ rsvp_summary.yes }}</li>
+          <li>❌ No:  {{ rsvp_summary.no }}</li>
+          <li>❔ Maybe: {{ rsvp_summary.maybe }}</li>
+        </ul>
+      </div>
+    {% endif %}
+
+    {% if meeting.summary %}
+      <p><strong>Summary:</strong><br>{{ meeting.summary|linebreaks }}</p>
+    {% endif %}
+  </div>
+
+  <div class="meeting-actions">
+    {# Edit link for creator or superuser #}
+    {% if user.is_superuser or meeting.created_by == user %}
+      <a href="{% url 'meeting_edit' meeting.pk %}" class="toggle-btn">Edit Meeting</a>
+    {% endif %}
+
+    {# Cancel button for superuser #}
+    {% if user.is_superuser and meeting.published %}
+      <form method="post" action="{% url 'meeting_cancel' meeting.pk %}" style="display:inline">
+        {% csrf_token %}
+        <button type="submit" class="toggle-btn">
+          Cancel Meeting
+        </button>
+      </form>
+    {% endif %}
+
+    {# Delete button for agents on their own 1:1 meetings #}
+    {% if not user.is_superuser and meeting.created_by == user and not meeting.published %}
+    <form method="post" action="{% url 'meeting_delete' meeting.pk %}" style="display:inline">
+      {% csrf_token %}
+      {# tell view which tab to reopen #}
+      <input type="hidden" name="tab" value="mine">
+      <button type="submit" class="toggle-btn">
+        Delete Meeting
+      </button>
+    </form>
+    {% endif %}
+
+    <a href="{{ google_url }}" target="_blank" class="toggle-btn">
+      Add to Google Calendar
+    </a>
+    <a href="{% url 'meeting_ics' meeting.pk %}" class="toggle-btn">
+      Download .ics
+    </a>
+    <button id="set-reminder-btn" class="toggle-btn">
+      Set Reminder
+    </button>
+  </div>
+
+  <script>
+    // RSVP button handlers
+    document.querySelectorAll('.rsvp-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const choice = btn.dataset.rsvp;
+        document.getElementById('rsvp-input').value = choice;
+        const data = new FormData(document.getElementById('rsvp-form'));
+
+        fetch("{% url 'submit_rsvp' meeting.pk %}", {
+          method: "POST",
+          headers: { "X-CSRFToken": data.get('csrfmiddlewaretoken') },
+          body: data
+        })
+        .then(r => r.json())
+        .then(json => {
+          if (json.success) {
+            window.location.reload();
+          } else {
+            console.error('RSVP error:', json.error);
+          }
+        })
+        .catch(err => console.error('Network error:', err));
+      });
+    });
+
+    // Reminder stub
+    document.getElementById('set-reminder-btn').addEventListener('click', () => {
+      const minutes = prompt("Remind me how many minutes before the meeting?", "30");
+      if (minutes === null) return;
+      const offset = parseInt(minutes, 10);
+      if (isNaN(offset) || offset < 0) {
+        alert("Please enter a valid non-negative number.");
+        return;
+      }
+      alert(`Reminder set ${offset} minutes before meeting.`);
+    });
+  </script>
+{% endblock %}

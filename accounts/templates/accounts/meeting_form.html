@@ -1,0 +1,191 @@
+{% extends "accounts/base.html" %}
+{% block header %}
+  {% if form.instance.pk %} 
+    Edit Meeting: {{ form.instance.title }}
+  {% else %} 
+    New Meeting
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+  <style>
+    /* dark-mode form fields */
+    #meeting-form select,
+    #meeting-form input[type="text"],
+    #meeting-form input[type="datetime-local"],
+    #meeting-form textarea {
+      background: var(--card);
+      color:      var(--text);
+      border:     1px solid var(--border);
+      width:      100%;
+      padding:    .5rem;
+      margin:     .25rem 0 .75rem;
+      border-radius: 4px;
+      box-sizing: border-box;
+      position:      relative;
+    }
+    /* expand the picker icon to full size */
+    #meeting-form input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      opacity: 0; cursor: pointer;
+    }
+    #meeting-form input[type="datetime-local"] { cursor: text; }
+
+    /* fieldset styling */
+    #meeting-form fieldset {
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    #meeting-form fieldset legend {
+      font-weight: bold;
+    }
+
+    /* cancel button styling */
+    .cancel-btn {
+      background: var(--danger);
+      border-color: var(--danger);
+      color: white;
+      margin-left: 1rem;
+    }
+  </style>
+
+  <form method="post" id="meeting-form" class="meeting-form">
+    {% csrf_token %}
+
+    <fieldset>
+      <legend>Details</legend>
+      {{ form.title.label_tag }}<br>{{ form.title }}
+      {{ form.location.label_tag }}<br>{{ form.location }}
+      {{ form.start_datetime.label_tag }}<br>{{ form.start_datetime }}
+      {{ form.end_datetime.label_tag }}<br>{{ form.end_datetime }}
+    </fieldset>
+
+    <fieldset>
+      <legend>Agenda & Summary</legend>
+      {{ form.agenda.label_tag }}<br>{{ form.agenda }}
+      {% if form.instance.pk %}
+        {{ form.summary.label_tag }}<br>{{ form.summary }}
+      {% endif %}
+    </fieldset>
+
+    {# 1-on-1 fields for non-superusers #}
+    {% if form.customer or form.lead %}
+      <fieldset>
+        <legend>Invite Customer or Lead</legend>
+        {% if form.customer %}
+          {{ form.customer.label_tag }}<br>{{ form.customer }}
+        {% endif %}
+        {% if form.lead %}
+          {{ form.lead.label_tag }}<br>{{ form.lead }}
+        {% endif %}
+      </fieldset>
+    {% endif %}
+
+    {# multi-invite for superusers #}
+    {% if form.groups %}
+      <fieldset>
+        <legend>Participants</legend>
+        {{ form.groups.label_tag }}<br>{{ form.groups }}
+        <div style="display:flex; gap:20px;">
+          <div style="flex:1;">
+            <label>Available Agents (dbl-click)</label>
+            <select id="available-users" multiple size="10" style="width:100%"></select>
+          </div>
+          <div style="flex:1;">
+            <label>Invited</label>
+            <select name="participants" id="id_participants" multiple required
+                    style="width:100%;height:200px">
+              {% for u in form.participants.field.queryset %}
+                <option value="{{ u.id }}"
+                  {% if u in form.initial.participants %}selected{% endif %}>
+                  {{ u.get_full_name|default:u.username }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+      </fieldset>
+    {% endif %}
+
+    {{ form.published }} {{ form.published.label_tag }}<br>
+
+    <button type="submit" class="toggle-btn">
+      {% if form.instance.pk %}Save{% else %}Create{% endif %}
+    </button>
+
+    {# Cancel Meeting button on edit for admins only #}
+    {% if form.instance.pk and user.is_superuser %}
+      <button type="submit" name="cancel" class="toggle-btn cancel-btn">
+        Cancel Meeting
+      </button>
+    {% endif %}
+  </form>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const groupsField    = document.getElementById('id_groups');
+      const availableUsers = document.getElementById('available-users');
+      const invitedUsers   = document.getElementById('id_participants');
+      const form           = document.getElementById('meeting-form');
+
+      function fetchUsers(groupIds) {
+        return fetch("{% url 'ajax_users_by_groups' %}?group_ids=" + groupIds.join(','))
+                .then(r => r.json());
+      }
+
+      if (groupsField) {
+        // single‐click: filter available list
+        groupsField.addEventListener('change', () => {
+          const sel = Array.from(groupsField.selectedOptions).map(o => o.value);
+          availableUsers.innerHTML = '';
+          if (!sel.length) return;
+          fetchUsers(sel).then(users => {
+            users.forEach(u =>
+              availableUsers.appendChild(new Option(u.full_name, u.id))
+            );
+          });
+        });
+
+        // dblclick on groups: bulk-add all members
+        groupsField.addEventListener('dblclick', () => {
+          const sel = Array.from(groupsField.selectedOptions).map(o => o.value);
+          if (!sel.length) return;
+          fetchUsers(sel).then(users => {
+            users.forEach(u => {
+              if (![...invitedUsers.options].some(o => o.value === String(u.id))) {
+                invitedUsers.appendChild(
+                  new Option(u.full_name, u.id, true, true)
+                );
+              }
+            });
+          });
+        });
+      }
+
+      // dblclick on available → invite
+      if (availableUsers && invitedUsers) {
+        availableUsers.addEventListener('dblclick', e => {
+          if (e.target.tagName !== 'OPTION') return;
+          if (![...invitedUsers.options].some(o => o.value === e.target.value)) {
+            invitedUsers.appendChild(
+              new Option(e.target.text, e.target.value, true, true)
+            );
+          }
+        });
+        invitedUsers.addEventListener('dblclick', e => {
+          if (e.target.tagName !== 'OPTION') return;
+          invitedUsers.removeChild(e.target);
+          if (invitedUsers.options.length) {
+            invitedUsers.options[0].selected = true;
+          }
+        });
+        form.addEventListener('submit', () => {
+          [...invitedUsers.options].forEach(opt => opt.selected = true);
+        });
+      }
+    });
+  </script>
+{% endblock %}

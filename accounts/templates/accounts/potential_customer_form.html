@@ -1,0 +1,73 @@
+{% extends 'accounts/base.html' %}
+{% block title %}Add Lead | CRM{% endblock %}
+{% block header %}Add Potential Customer{% endblock %}
+
+{% block content %}
+<style>
+    .form-container {
+        max-width: 600px;
+        margin: 0 auto;
+        background-color: var(--card);
+        padding: 30px;
+        border-radius: 12px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.15);
+    }
+
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    label {
+        display: block;
+        font-weight: bold;
+        margin-bottom: 6px;
+        color: var(--text);
+    }
+
+    input[type="text"],
+    input[type="email"],
+    input[type="tel"] {
+        width: 100%;
+        padding: 10px;
+        border-radius: 8px;
+        border: 1px solid var(--accent);
+        background-color: var(--bg-secondary);
+        color: var(--text);
+    }
+
+    .submit-btn,
+    .back-btn {
+        background-color: var(--accent);
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        font-weight: bold;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: 0.3s ease;
+        margin-right: 10px;
+    }
+
+    .submit-btn:hover,
+    .back-btn:hover {
+        background-color: #1aa357;
+    }
+</style>
+
+<div class="form-container">
+    <form method="POST">
+        {% csrf_token %}
+        {% for field in form.visible_fields %}
+            <div class="form-group">
+                {{ field.label_tag }}
+                {{ field }}
+                {% if field.errors %}
+                    <div style="color: red;">{{ field.errors }}</div>
+                {% endif %}
+            </div>
+        {% endfor %}
+        <button type="submit" class="toggle-btn">Submit</button>
+        <a href="{% url 'potential_customer_list' %}" class="toggle-btn">Back</a>
+    </form>
+</div>
+{% endblock %}

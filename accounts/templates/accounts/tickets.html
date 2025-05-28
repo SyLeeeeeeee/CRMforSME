@@ -1,0 +1,21 @@
+{% extends 'accounts/base.html' %}
+
+{% block title %}Tickets{% endblock %}
+
+{% block content %}
+<h1>All Tickets</h1>
+<table>
+    <tr>
+        <th>Ticket ID</th>
+        <th>Subject</th>
+        <th>Status</th>
+    </tr>
+    {% for ticket in tickets %}
+    <tr>
+        <td>{{ ticket.ticket_id }}</td>
+        <td>{{ ticket.subject }}</td>
+        <td>{{ ticket.status }}</td>
+    </tr>
+    {% endfor %}
+</table>
+{% endblock %}
