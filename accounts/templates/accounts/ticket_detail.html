@@ -1,0 +1,694 @@
+{% extends 'accounts/base.html' %}
+{% block title %}Ticket #{{ ticket.id }} | CRM{% endblock %}
+{% block header %}Ticket #{{ ticket.id }}{% endblock %}
+
+{% block content %}
+<style>
+    /* ───── GLOBAL RESET ───────────────────────────────────── */
+    html, body {
+      margin: 0;
+      padding: 0;
+    }
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
+  
+    /* ───── PAGE LAYOUT ───────────────────────────────────── */
+    .container {
+      display: flex;
+      width: 100%;
+      height: 100vh;
+    }
+    .sidebar {
+      width: 220px;
+      /* … your existing sidebar styles … */
+    }
+    .main-content {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;           /* scroll vertically if needed */
+      overflow-x: visible;        /* never clip horizontally */
+    }
+  
+    /* ───── FORM STRUCTURE ────────────────────────────────── */
+    .form-wrapper {
+      width: 100%;
+      padding: 30px;
+    }
+    .form-section {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      margin-bottom: 20px;
+      /* allow this row to scroll on overflow rather than clip */
+      overflow-x: auto;
+    }
+    .form-left,
+    .form-right {
+      flex: 1;
+      min-width: 300px;
+      background: var(--card);
+      padding: 20px;
+      border-radius: 12px;
+    }
+    .form-right {
+      max-width: 400px;
+      align-self: flex-start;
+    }
+    .form-field {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    input, select, textarea {
+      width: 100%;
+      padding: 10px;
+      border: 2px solid var(--accent);
+      border-radius: 8px;
+      background: var(--bg-secondary);
+      color: var(--text);
+    }
+  
+    /* ───── TABS ─────────────────────────────────────────── */
+    .tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 20px;
+    }
+    .tabs button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      background: var(--accent);
+      color: white;
+      cursor: pointer;
+    }
+    .tabs button.active {
+      background: var(--accent);
+    }
+  
+    /* ───── TAB CONTENT ─────────────────────────────────── */
+    .tab-content {
+      display: none;
+      width: 100%;
+      min-height: 400px;
+      background: var(--card);
+      border-radius: 12px;
+      padding: 20px;
+      margin-top: 12px;
+      transition: all 0.3s ease-in-out;
+    }
+    .tab-content.active {
+      display: block;
+    }
+  
+    /* ───── COMMENTS & EMAILS ───────────────────────────── */
+    .comment,
+    .email-log {
+      display: block !important;
+      width: 100% !important;
+      margin: 6px 0 !important;
+      padding: 8px 12px !important;
+      background: var(--bg-secondary) !important;
+      border: 1px solid var(--accent) !important;
+      border-radius: 6px !important;
+      word-wrap: break-word !important;
+      word-break: break-all !important;
+    }
+    .comment > strong,
+    .email-log > strong {
+      display: block !important;
+      margin-bottom: 4px !important;
+      font-size: 12px !important;
+      font-weight: 600 !important;
+    }
+    .comment > :not(strong),
+    .email-log > :not(strong) {
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+    .comment .comment {
+      display: block !important;
+      margin: 8px 0 8px 20px !important;
+      padding: 6px 10px !important;
+      width: calc(100% - 20px) !important;
+      border-radius: 4px !important;
+    }
+    .reply-btn {
+      margin-top: 6px !important;
+      padding: 4px 8px !important;
+      font-size: 11px !important;
+      border-radius: 4px !important;
+    }
+  
+    /* ───── CALLERS ─────────────────────────────────────── */
+    .caller-entry {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .caller-entry input,
+    .caller-entry select {
+      flex: 1;
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid var(--accent);
+      background: var(--bg-secondary);
+      color: var(--text);
+    }
+    .remove-btn {
+      padding: 6px 10px;
+      border-radius: 6px;
+      background: red;
+      color: white;
+      cursor: pointer;
+      border: none;
+    }
+  
+    /* ───── AGENT DROPDOWN ─────────────────────────────── */
+.dropdown-list {
+  position: fixed;        /* <- FIXED instead of absolute */
+  width: 100%;            /* we'll override in JS */
+  max-height: 200px;
+  overflow-y: auto;
+  background: var(--card);
+  border: 2px solid var(--accent);
+  border-radius: 10px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+  z-index: 1000;
+  display: none;
+}
+.dropdown-list table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.dropdown-list th,
+.dropdown-list td {
+  padding: 8px;
+  color: var(--text);
+}
+.dropdown-list th {
+  background: var(--accent);
+  color: white;
+  text-align: left;
+}
+.dropdown-item:hover td {
+  background: var(--accent);
+  color: white;
+  cursor: pointer;
+}
+
+/* ─── CHANGE‑LOG MODAL ─────────────────────────────────── */
+
+#changeLogModal .modal-box {
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border-radius: 12px;
+  width: 90%;
+  max-width: 600px;
+  box-shadow: 0 0 16px rgba(0,0,0,0.5);
+  overflow: hidden;
+  margin: auto;
+}
+
+/* Centered header + close button */
+#changeLogModal .modal-header {
+  position: relative;
+  text-align: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--accent);
+  flex-shrink: 0;
+}
+#changeLogModal .modal-header h3 {
+  margin: 0 auto;
+  font-size: 1.25rem;
+}
+#changeLogModal .modal-header .modal-close {
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+/* Scrollable content with fixed max-width and centering */
+#changeLogModal .modal-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 16px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent) transparent;
+
+  max-width: 540px;           /* ✅ Centering trick */
+  margin: 0 auto;             /* ✅ Horizontally center all content */
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Uniform log box layout */
+#changeLogModal .change-item {
+  width: 100%;
+  margin: 8px 0;
+  padding: 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  text-align: left;
+  box-sizing: border-box;
+}
+
+/* Style for values */
+#changeLogModal .change-values {
+  margin-top: 4px;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+  </style>
+    
+<div class="form-wrapper">      
+<form method="POST">
+{% csrf_token %}
+<div class="form-section" style="align-items: flex-start;">
+    <div style="flex: 2; display: flex; flex-direction: column; gap: 20px;">
+        <div class="form-left">
+            <div class="form-field"><label>Ticket ID</label><input type="text" value="{{ ticket.id }}" readonly></div>
+        </div>
+        <div class="form-left">
+            <div class="form-field"><label>Customer ID</label><input type="text" value="{{ customer.id }}" readonly></div>
+            <div class="form-field"><label>Customer Email</label><input type="email" value="{{ customer.customer_email }}" readonly></div>
+            <div class="form-field"><label>Customer Name</label><input type="text" value="{{ customer.customer_name }} {{ customer.customer_surname }}" readonly></div>
+            <div class="form-field"><label>Customer Phone</label><input type="text" value="{{ customer.customer_phone }}" readonly></div>
+        </div>
+        <div class="form-left">
+            <div class="form-field"><label>Subject</label><input type="text" name="subject" value="{{ ticket.subject }}" required></div>
+            <div class="form-field"><label>Problem Description</label><textarea name="problem_description" rows="3">{{ ticket.problem_description }}</textarea></div>
+            <div class="form-field"><label>Case Summary</label><textarea name="case_summary" rows="3">{{ ticket.case_summary }}</textarea></div>
+            <div class="form-field"><label>Action Plan</label><textarea name="action_plan" rows="3">{{ ticket.action_plan }}</textarea></div>
+        </div>
+    </div>
+    <div class="form-right">
+        <div class="form-field">
+            <label>Priority</label>
+            <select name="priority">
+                <option {% if ticket.priority == 'High' %}selected{% endif %}>High</option>
+                <option {% if ticket.priority == 'Medium' %}selected{% endif %}>Medium</option>
+                <option {% if ticket.priority == 'Low' %}selected{% endif %}>Low</option>
+            </select>
+        </div>
+        <div class="form-field">
+            <label>Status</label>
+            <select name="status">
+                <option {% if ticket.status == 'Open' %}selected{% endif %}>Open</option>
+                <option {% if ticket.status == 'In Progress' %}selected{% endif %}>In Progress</option>
+                <option {% if ticket.status == 'Resolved' %}selected{% endif %}>Resolved</option>
+                <option {% if ticket.status == 'Waiting on Customer' %}selected{% endif %}>Waiting on Customer</option>
+            </select>
+        </div>
+        <div class="form-field">
+            <label>Source</label>
+            <select name="source_type">
+                <option {% if ticket.source_type == 'Email' %}selected{% endif %}>Email</option>
+                <option {% if ticket.source_type == 'Phone' %}selected{% endif %}>Phone</option>
+                <option {% if ticket.source_type == 'Portal' %}selected{% endif %}>Portal</option>
+            </select>
+        </div>
+        <div class="form-field"><label>Created By</label><input type="text" value="{{ ticket.created_by.username }}" readonly></div>
+        <div class="form-field"><label>Originating Department</label><input type="text" value="{{ ticket.originating_department.name|default:'N/A' }}" readonly></div>
+        <div class="form-field"><label>Created Date</label><input type="text" value="{{ ticket.created_date|date:'Y-m-d H:i' }}" readonly></div>
+        <div class="form-field"><label>Last Edited</label><input type="text" value="{{ ticket.updated_date|date:'Y-m-d H:i' }}" readonly></div>
+
+        <!-- Change Department -->
+        <div class="form-field">
+            <label>Change Department</label>
+            <select name="group_filter" id="group-select" onchange="filterAgentsByGroup(this.value, true)">
+                <option value="">-- Select Group --</option>
+                {% for group in groups %}
+                    <option value="{{ group.id }}" {% if group.id|stringformat:"s" == selected_group_id|stringformat:"s" %}selected{% endif %}>
+                        {{ group.name }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Assignee -->
+        <div class="form-field">
+            <label>Assign Agent</label>
+            <input type="text" id="agent-field" name="assignee"
+       value="{{ selected_assignee|default:'' }}"
+       onfocus="showAgentDropdown()" oninput="filterAgentList()" autocomplete="off" />
+            <div id="agentDropdown" class="dropdown-list">
+                <table>
+                    <thead><tr><th>Username</th></tr></thead>
+                    <tbody id="agentTableBody">
+                        {% for a in agents %}
+                            <tr class="dropdown-item" data-agent="{{ a }}"><td>{{ a }}</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- CALLERS -->
+<div class="form-section">
+    <div class="form-left">
+        <label>Callers</label>
+        <div id="callers-container">
+            {% for caller in ticket.callers.all %}
+            <div class="caller-entry">
+                <input name="caller_name[]" value="{{ caller.name }}" placeholder="Name" required>
+                <input name="caller_email[]" value="{{ caller.email }}" placeholder="Email (optional)">
+                <input name="caller_phone[]" value="{{ caller.phone }}" placeholder="Phone" required>
+                <select name="caller_phone_type[]">
+                    <option {% if caller.phone_type == "Business" %}selected{% endif %}>Business</option>
+                    <option {% if caller.phone_type == "Home" %}selected{% endif %}>Home</option>
+                    <option {% if caller.phone_type == "Other" %}selected{% endif %}>Other</option>
+                </select>
+                <input name="caller_position[]" value="{{ caller.position }}" placeholder="Position">
+                <button type="button" class="remove-btn" onclick="this.parentNode.remove()">❌</button>
+            </div>
+            {% endfor %}
+        </div>
+        <button type="button" class="toggle-btn" onclick="addCaller()">+ Add Caller</button>
+    </div>
+</div>
+
+<!-- RESOLUTION -->
+<div class="form-section"><div class="form-left"><label>Resolution / Solution</label><textarea name="resolution_reason" rows="4">{{ ticket.resolution_reason }}</textarea></div></div>
+
+<!-- TABS + COMMENTS -->
+<div class="form-section" style="flex-direction: column;">
+    <div class="tabs">
+      <button type="button" class="main-tab-btn toggle-btn active" data-tab="internal">Internal</button>
+      <button type="button" class="main-tab-btn toggle-btn" data-tab="external">External</button>
+      <a href="{% url 'tickets' %}" class="toggle-btn">Cancel</a>
+  
+      <!-- Save + Change‑Log controls -->
+      <button type="submit" class="toggle-btn" style="margin-left: auto;">Save Changes</button>
+      <button type="button" id="viewChangeLog" class="toggle-btn" style="margin-left: 8px;">
+        View Change Log
+      </button>
+    </div>
+  </div>
+  
+  <!-- CHANGE LOG MODAL -->
+<div id="changeLogModal" class="modal-overlay">
+    <div class="modal-box">
+      <header class="modal-header">
+        <h3>Change Log</h3>
+        <button type="button" class="modal-close">&times;</button>
+      </header>
+      <section class="modal-content">
+        {% if changes %}
+          {% for change in changes %}
+            <div class="change-item">
+              <strong>{{ change.field }}</strong>
+               | by {{ change.user.username }}
+               @ {{ change.changed_at|date:"Y-m-d H:i" }}
+              <div class="change-values">
+                <em>{{ change.old_value }}</em> → <em>{{ change.new_value }}</em>
+              </div>
+            </div>
+          {% endfor %}
+        {% else %}
+          <p>No changes recorded yet.</p>
+        {% endif %}
+      </section>
+    </div>
+  </div>
+
+  <!-- INTERNAL COMMENTS -->
+<div id="tab-internal" class="tab-content active">
+    <a id="internal-comments-anchor"></a>
+  
+    <div class="form-field">
+      <label>Add Internal Comment</label>
+      <textarea name="new_internal_comment" placeholder="Write a new internal comment..."></textarea>
+      <input type="hidden" name="parent_comment_id" id="parent_comment_id">
+      <button type="submit" class="toggle-btn" style="margin-top: 10px;">Post Comment</button>
+    </div>
+  
+    {% for comment in internal_comments %}
+      <div class="comment">
+        <strong>{{ comment.user.username }}</strong> @ {{ comment.created_at|date:"Y-m-d H:i" }}<br>
+        {{ comment.message }}
+        <div style="margin-top: 5px;">
+          <button
+            type="button"
+            class="toggle-btn reply-btn"
+            onclick="replyToComment({{ comment.id }})"
+          >↪ Reply</button>
+        </div>
+  
+        {% for reply in comment.replies.all %}
+          <div
+            class="comment"
+            style="margin-left: 20px; margin-top: 10px;
+                   background-color: var(--bg-secondary);
+                   border: 1px solid var(--accent);"
+          >
+            <strong>{{ reply.user.username }}</strong> @ {{ reply.created_at|date:"Y-m-d H:i" }}<br>
+            {{ reply.message }}
+          </div>
+        {% endfor %}
+      </div>
+    {% empty %}
+      <p>No internal comments yet.</p>
+    {% endfor %}
+  </div>
+  
+  <!-- EXTERNAL EMAIL -->
+  <div id="tab-external" class="tab-content">
+    <a id="external-email-anchor"></a>
+  
+    <div class="form-field"><label>To</label><input type="email" name="email_to"></div>
+    <div class="form-field"><label>CC</label><input type="text" name="email_cc"></div>
+    <div class="form-field"><label>Subject</label><input type="text" name="email_subject"></div>
+    <div class="form-field"><label>Message</label><textarea name="email_message" rows="4"></textarea></div>
+    <button type="submit" class="toggle-btn" style="margin-bottom: 20px;">Send Email</button>
+  
+    {% for email in external_emails %}
+      <div class="email-log">
+        <strong>{{ email.sender }}</strong> → {{ email.to }} | {{ email.sent_at|date:"Y-m-d H:i" }}<br>
+        <strong>{{ email.subject }}</strong><br>
+        {{ email.message }}
+      </div>
+    {% empty %}
+      <p>No emails sent yet.</p>
+    {% endfor %}
+  </div>
+</form>
+</div>
+<script>
+    const agentInput     = document.getElementById('agent-field');
+    const agentDropdown  = document.getElementById('agentDropdown');
+    const agentTableBody = document.getElementById('agentTableBody');
+  
+    // show + position the dropdown
+    function showAgentDropdown() {
+      filterAgentList();  // hide rows that don’t match
+  
+      // compute input’s viewport position
+      const rect = agentInput.getBoundingClientRect();
+      agentDropdown.style.position = 'fixed';
+      agentDropdown.style.top      = `${rect.bottom + 4}px`;
+      agentDropdown.style.left     = `${rect.left}px`;
+      agentDropdown.style.width    = `${rect.width}px`;
+  
+      agentDropdown.style.display  = 'block';
+    }
+  
+    // filter visible rows
+    function filterAgentList() {
+      const filter = agentInput.value.trim().toLowerCase();
+      let anyVisible = false;
+  
+      agentTableBody.querySelectorAll('.dropdown-item').forEach(row => {
+        const name = row.dataset.agent.toLowerCase();
+        if (name.startsWith(filter)) {
+          row.style.display = '';
+          anyVisible = true;
+        } else {
+          row.style.display = 'none';
+        }
+      });
+  
+      // hide the dropdown entirely if nothing matches
+      if (!anyVisible) agentDropdown.style.display = 'none';
+    }
+  
+    // click on a row → pick that agent
+    agentDropdown.addEventListener('click', e => {
+      const row = e.target.closest('.dropdown-item');
+      if (!row) return;
+      agentInput.value           = row.dataset.agent;
+      agentDropdown.style.display = 'none';
+    });
+  
+    // click anywhere else → close
+    document.addEventListener('click', e => {
+      if (e.target !== agentInput && !agentDropdown.contains(e.target)) {
+        agentDropdown.style.display = 'none';
+      }
+    });
+  
+    // reposition if the window resizes
+    window.addEventListener('resize', () => {
+      if (agentDropdown.style.display === 'block') {
+        const rect = agentInput.getBoundingClientRect();
+        agentDropdown.style.top   = `${rect.bottom + 4}px`;
+        agentDropdown.style.left  = `${rect.left}px`;
+        agentDropdown.style.width = `${rect.width}px`;
+      }
+    });
+  
+    // fetch & rebuild list when department changes
+    function filterAgentsByGroup(groupId, clearAgent = false) {
+      agentTableBody.innerHTML = '';
+      if (clearAgent) agentInput.value = '';
+      if (!groupId) return;
+  
+      fetch(`/get-agents-by-group/?group_id=${groupId}`)
+        .then(r => r.json())
+        .then(data => {
+          data.agents.forEach(agent => {
+            const row = document.createElement('tr');
+            row.className = 'dropdown-item';
+            row.dataset.agent = agent;
+            row.innerHTML = `<td>${agent}</td>`;
+            agentTableBody.appendChild(row);
+          });
+          // re‑show stale selection if needed
+          if (!clearAgent) {
+            const selected = "{{ selected_assignee }}".trim();
+            if (selected) agentInput.value = selected;
+          }
+        });
+    }
+  
+    // on page load, pre‑populate if there's already a group/assignee
+    document.addEventListener('DOMContentLoaded', () => {
+      const selectedGroupId = "{{ selected_group_id }}";
+      if (selectedGroupId) filterAgentsByGroup(selectedGroupId);
+  
+      const selectedAssignee = "{{ selected_assignee|escapejs }}";
+      if (selectedAssignee && !agentInput.value) {
+        agentInput.value = selectedAssignee;
+      }
+    });
+  
+
+    function addCaller() {
+        const container = document.getElementById('callers-container');
+        const entry = document.createElement('div');
+        entry.className = 'caller-entry';
+        entry.innerHTML = `
+            <input name="caller_name[]" placeholder="Name" required>
+            <input name="caller_email[]" type="email" placeholder="Email (optional)">
+            <input name="caller_phone[]" placeholder="Phone" required>
+            <select name="caller_phone_type[]">
+                <option>Business</option>
+                <option>Home</option>
+                <option>Other</option>
+            </select>
+            <input name="caller_position[]" placeholder="Position">
+            <button type="button" class="remove-btn" onclick="this.parentNode.remove()">❌</button>
+        `;
+        container.appendChild(entry);
+    }
+
+    const mainTabs = document.querySelectorAll('.main-tab-btn');
+    const tabContents = {
+        internal: document.getElementById('tab-internal'),
+        external: document.getElementById('tab-external')
+    };
+    mainTabs.forEach(btn => {
+        btn.addEventListener('click', () => {
+            mainTabs.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            Object.entries(tabContents).forEach(([key, el]) => {
+                el.classList.toggle('active', btn.dataset.tab === key);
+            });
+        });
+    });
+
+    // Reply to internal comment
+    function replyToComment(commentId) {
+        const commentInput = document.querySelector('textarea[name="new_internal_comment"]');
+        const parentInput = document.getElementById('parent_comment_id');
+        const anchor = document.getElementById('internal-comments-anchor');
+    
+        parentInput.value = commentId;
+    
+        if (anchor) {
+            anchor.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    
+        commentInput.focus();
+    }
+    
+    // Reset parent ID if user clears comment field
+    document.querySelector('textarea[name="new_internal_comment"]').addEventListener('input', function () {
+        const parentInput = document.getElementById('parent_comment_id');
+        if (!this.value.trim()) {
+            parentInput.value = '';
+        }
+    });
+
+    // stay on correct tab & scroll to anchor after redirect
+    document.addEventListener('DOMContentLoaded', () => {
+      const hash = window.location.hash;
+      if (hash === '#external-email-anchor') {
+        // open External tab
+        document.querySelector('.main-tab-btn[data-tab="external"]').click();
+        // scroll into view
+        setTimeout(() => {
+          const anchor = document.getElementById('external-email-anchor');
+          if (anchor) anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 100);
+      } else if (hash === '#internal-comments-anchor') {
+        // open Internal tab
+        document.querySelector('.main-tab-btn[data-tab="internal"]').click();
+        setTimeout(() => {
+          const anchor = document.getElementById('internal-comments-anchor');
+          if (anchor) anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 100);
+      }
+    });
+
+    // OPEN modal
+  document.getElementById('viewChangeLog').addEventListener('click', () => {
+    document.getElementById('changeLogModal').style.display = 'flex';
+  });
+
+  // CLOSE via x
+  document.querySelector('.modal-close').addEventListener('click', () => {
+    document.getElementById('changeLogModal').style.display = 'none';
+  });
+
+  // CLOSE when clicking outside box
+  document.getElementById('changeLogModal')
+    .addEventListener('click', e => {
+      if (e.target.id === 'changeLogModal') {
+        e.target.style.display = 'none';
+      }
+    });
+</script>
+{% endblock %}

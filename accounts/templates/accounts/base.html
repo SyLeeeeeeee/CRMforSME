@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+{% load static %}
+<head>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/meetings.css' %}">
+    <meta charset="UTF-8">
+    <title>{% block title %}CRM{% endblock %}</title>
+    <style>
+        :root {
+            --bg: #ffffff;
+            --text: #333333;
+            --card: #f7f7f7;
+            --accent: #4ec46e;
+            --neutral-hover: #45a049;
+            --hover-glow: 0 0 8px rgba(0, 0, 0, 0.2);
+        }
+
+        body.dark-mode {
+            --bg: #1e1e1e;
+            --text: #f1f1f1;
+            --card: #2c2c2c;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            transition: all 0.3s ease;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        .sidebar {
+            width: 220px;
+            background-color: var(--accent);
+            padding: 20px 10px;
+            display: flex;
+            flex-direction: column;
+            transition: width 0.3s ease;
+        }
+
+        .sidebar.collapsed {
+            width: 60px;
+        }
+
+        .sidebar button {
+            background: transparent;
+            border: none;
+            font-size: 22px;
+            color: white;
+            margin-bottom: 20px;
+            cursor: pointer;
+        }
+
+        .sidebar a {
+            color: white;
+            text-decoration: none;
+            margin: 10px 0;
+            font-weight: bold;
+            border-radius: 8px;
+            padding: 10px;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .sidebar a:hover {
+            background-color: var(--neutral-hover);
+        }
+
+        .sidebar img.icon {
+            width: 24px;
+            height: 24px;
+            object-fit: contain;
+            display: block;
+            filter: invert(1);
+        }
+
+        .sidebar.collapsed .tab-text {
+            display: none;
+        }
+
+        .sidebar a.active {
+            background-color: var(--neutral-hover);
+        }
+
+        .main-content {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .topbar {
+            padding: 15px 30px;
+            background-color: var(--card);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .top-right-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .notification-icon .badge {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            width: 10px;
+            height: 10px;
+            background-color: red;
+            border-radius: 50%;
+            z-index: 1;
+        }        
+
+        .notification-item {
+            padding: 10px 8px;
+            border-bottom: 1px solid var(--accent); /* ✅ Divider line */
+            cursor: pointer;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap; /* ✅ Single line */
+        }
+
+        .notification-item:last-child {
+            border-bottom: none;
+        }
+
+        .notification-icon {
+            position: relative;
+            cursor: pointer;
+        }
+
+        .notification-icon img {
+            width: 26px;
+            height: 26px;
+            filter: invert(0);
+        }
+
+        body.dark-mode .notification-icon img {
+            filter: invert(1);
+        }
+
+        .notification-dropdown {
+            display: none;
+            position: absolute;
+            top: 35px;
+            right: 0;
+            background-color: var(--card);
+            color: var(--text);
+            padding: 12px;
+            border: 1px solid var(--accent);
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+            white-space: normal;
+            z-index: 1000;
+            width: 300px;
+            max-height: 300px; /* 👈 Limit height */
+            overflow-y: auto;   /* 👈 Scroll if needed */
+        }        
+
+        .notification-dropdown.active {
+            display: block;
+        }
+
+        .notification-item.unread {
+            font-weight: bold;
+            background-color: rgba(78, 196, 110, 0.1);
+        }       
+
+        .content {
+            padding: 30px;
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+
+        .toggle-btn {
+            background: none;
+            border: 2px solid var(--accent);
+            cursor: pointer;
+            font-size: 14px;
+            color: var(--text);
+            border-radius: 10px;
+            padding: 10px 20px;
+            transition: color 0.3s, box-shadow 0.3s, background 0.3s;
+            font-weight: bold;
+            text-decoration: none;
+        }
+
+        .toggle-btn:hover {
+            box-shadow: 0 0 8px #ccc, 0 0 5px var(--accent);
+            background-color: var(--accent);
+            color: white;
+        }
+
+        body.dark-mode .topbar {
+            background-color: #333;
+        }
+
+        body.dark-mode .sidebar {
+            background-color: #222;
+        }
+
+        body.dark-mode .sidebar a {
+            color: #f1f1f1;
+        }
+
+        body.dark-mode .sidebar a:hover {
+            background-color: var(--accent);
+            color: white;
+        }
+
+        body.dark-mode .toggle-btn {
+            background-color: var(--card);
+            color: var(--text);
+            border-color: #ccc;
+        }
+
+        body.dark-mode .toggle-btn:hover {
+            background-color: #ccc;
+            color: black;
+            box-shadow: 0 0 8px #ccc;
+        }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .modal-overlay.active {
+            display: flex;
+        }
+        
+        .modal-content {
+            background-color: var(--card);
+            padding: 20px 30px;
+            border-radius: 10px;
+            max-width: 500px;
+            width: 90%;
+            color: var(--text);
+            text-align: center;
+        }
+        
+        .form-left,
+  .form-right,
+  .tab-content,
+  .main-content .topbar,
+  .notification-dropdown,
+  .modal-content {
+    background-color: var(--card);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    /* if you want a faint lift, uncomment: */
+    /* box-shadow: 0 1px 3px rgba(0,0,0,0.05); */
+  }
+    </style>
+</head>
+<body>
+<script>
+    if (localStorage.getItem("darkMode") === "enabled") {
+        document.documentElement.classList.add("dark-mode");
+    }
+</script>
+
+<div class="container">
+    <div class="sidebar" id="sidebar">
+        <button onclick="toggleSidebar()">☰</button>
+      
+        <a href="{% url 'tickets' %}"
+           class="{% if 'tickets' in request.path %}active{% endif %}"
+           title="Tickets">
+          <img src="{% static 'accounts/ticket.png' %}" class="icon">
+          <span class="tab-text">Tickets</span>
+        </a>
+      
+        {% if not request.user.groups.all.0.name == "Support" %}
+          <a href="{% url 'pipeline_list' %}"
+             class="{% if 'pipeline' in request.path %}active{% endif %}"
+             title="Sales pipeline">
+            <img src="{% static 'accounts/pipeline.png' %}" class="icon">
+            <span class="tab-text">Sales Pipeline</span>
+          </a>
+          <a href="{% url 'potential_customer_list' %}"
+             class="{% if 'leads' in request.path %}active{% endif %}"
+             title="Leads">
+            <img src="{% static 'accounts/leads.png' %}" class="icon">
+            <span class="tab-text">Potential Customers</span>
+          </a>
+        {% endif %}
+      
+        {% if request.user.is_superuser %}
+            <a href="{% url 'reports' %}"
+            class="{% if 'reports' in request.path %}active{% endif %}"
+            title="Reports">
+            <img src="{% static 'accounts/reports.png' %}" class="icon">
+            <span class="tab-text">Reports</span>
+            </a>
+            {% endif %}
+      
+        <a href="{% url 'meeting_list' %}"
+           class="{% if 'meetings' in request.path %}active{% endif %}"
+           title="Meetings">
+          <img src="{% static 'accounts/meeting.png' %}" class="icon">
+          <span class="tab-text">Meetings</span>
+        </a>
+      
+        <a href="{% url 'customer_list' %}"
+           class="{% if 'customers' in request.path %}active{% endif %}"
+           title="Customers">
+          <img src="{% static 'accounts/customers.png' %}" class="icon">
+          <span class="tab-text">Customers</span>
+        </a>
+      </div>           
+    <div class="main-content">
+        <div class="topbar">
+            <h2>{% block header %}CRM Dashboard{% endblock %}</h2>
+            <div class="top-right-controls">
+                <div class="notification-icon" onclick="toggleNotifications()">
+                    <div style="position: relative;">
+                        <img src="{% static 'accounts/notification.png' %}" alt="Notifications">
+                        {% if has_unread_notifications %}
+                            <span id="redDot" style="
+                                position: absolute;
+                                top: -3px;
+                                right: -3px;
+                                width: 10px;
+                                height: 10px;
+                                background-color: red;
+                                border-radius: 50%;
+                                border: 1px solid white;
+                                display: inline-block;">
+                            </span>
+                        {% endif %}
+                    </div>
+        
+                    <div id="notificationDropdown" class="notification-dropdown">
+                        {% if request.user.is_authenticated and request.user.notifications.all|length %}
+                            {% for note in request.user.notifications.all|dictsortreversed:"created_at" %}
+                                <div class="notification-item {% if not note.is_read %}unread{% endif %}"
+                                     data-id="{{ note.id }}"
+                                     onclick="showNotificationModal('{{ note.message|escapejs }}', {{ note.id }})">
+                                    {{ note.message|truncatechars:50|safe }}
+                                </div>
+                            {% endfor %}
+                            <div class="notification-item"
+                                 onclick="clearAllNotifications()"
+                                 style="text-align: center; color: var(--accent); font-weight: bold; border-top: 1px solid #ccc; margin-top: 8px; padding-top: 8px;">
+                                Clear All Notifications
+                            </div>
+                        {% else %}
+                            <div class="notification-item">No notifications</div>
+                        {% endif %}
+                    </div>
+                </div>
+                <button class="toggle-btn" onclick="toggleMode()" id="modeBtn">Dark Mode</button>
+                <a href="{% url 'logout' %}" class="toggle-btn">Logout</a>
+            </div>
+        </div>                
+        <div class="content">
+            {% block content %}
+            {% endblock %}
+        </div>
+    </div>
+</div>
+
+<script>
+    window.addEventListener('DOMContentLoaded', () => {
+        const sidebar = document.getElementById('sidebar');
+        const savedCollapsed = localStorage.getItem('sidebar-collapsed');
+        if (savedCollapsed === 'true') {
+            sidebar.classList.add('collapsed');
+        }
+
+        const saved = localStorage.getItem("darkMode");
+        const btn = document.getElementById("modeBtn");
+        if (saved === "enabled") {
+            document.body.classList.add("dark-mode");
+            if (btn) btn.innerText = "Light Mode";
+        }
+    });
+
+    function toggleSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        sidebar.classList.toggle('collapsed');
+        localStorage.setItem('sidebar-collapsed', sidebar.classList.contains('collapsed'));
+    }
+
+    function toggleMode() {
+        const body = document.body;
+        const btn = document.getElementById("modeBtn");
+        const enabled = body.classList.toggle("dark-mode");
+        localStorage.setItem("darkMode", enabled ? "enabled" : "disabled");
+        btn.innerText = enabled ? "Light Mode" : "Dark Mode";
+    }
+
+    function toggleNotifications() {
+        document.getElementById("notificationDropdown").classList.toggle("active");
+    }
+
+    document.addEventListener("click", function (e) {
+        const dropdown = document.getElementById("notificationDropdown");
+        const icon = document.querySelector(".notification-icon");
+        if (!icon.contains(e.target)) {
+            dropdown.classList.remove("active");
+        }
+    });
+
+    function showNotificationModal(message, id) {
+        const modal = document.getElementById("notificationModal");
+        const content = document.getElementById("notificationMessage");
+        content.innerHTML = message;
+        modal.classList.add("active");
+    
+        //Mark the notification as read via fetch
+        fetch(`/notifications/mark-read/${id}/`)
+            .then(() => {
+                // Remove highlight from the clicked item
+                const clickedItem = document.querySelector(`.notification-item[onclick*="${id}"]`);
+                if (clickedItem) clickedItem.classList.remove("unread");
+    
+                // If there are no more ".notification-item.unread", hide the red dot
+                const stillUnread = document.querySelectorAll('.notification-item.unread');
+                if (stillUnread.length === 0) {
+                    const redDot = document.getElementById('redDot');
+                    if (redDot) redDot.remove();
+                }
+            });
+    
+        modal.onclick = function () {
+            modal.classList.remove("active");
+        };
+    }    
+    
+    function clearAllNotifications() {
+        fetch('/notifications/clear-all/')
+            .then(() => window.location.reload());
+    }
+</script>
+<div class="modal-overlay" id="notificationModal">
+    <div class="modal-content" id="notificationMessage"></div>
+</div>
+</body>
+</html>

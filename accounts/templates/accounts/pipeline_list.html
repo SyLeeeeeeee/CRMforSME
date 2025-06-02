@@ -1,0 +1,749 @@
+{% extends 'accounts/base.html' %} 
+{% block title %}Sales Pipeline{% endblock %}
+{% block header %}Sales Pipeline{% endblock %}
+
+{% block content %}
+<style>
+  .pipeline-board {
+    display: flex;
+    gap: 20px;
+    overflow-x: auto;
+    padding-bottom: 20px;
+  }
+
+  .stage-column {
+    background-color: var(--card);
+    border-radius: 10px;
+    padding: 15px;
+    min-width: 250px;
+    flex-shrink: 0;
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.05);
+  }
+
+  .stage-header {
+    font-weight: bold;
+    margin-bottom: 10px;
+    color: var(--text);
+  }
+
+  .lead-card {
+    background-color: var(--bg-secondary);
+    padding: 10px;
+    border-radius: 6px;
+    margin-bottom: 10px;
+    border: 1px solid var(--accent);
+    cursor: pointer;
+    position: relative;
+  }
+
+  #leadModal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    justify-content: center;
+    align-items: center;
+    z-index: 999;
+  }
+
+  #leadModal.show {
+    display: flex !important;
+  }
+
+  #leadModalContentWrapper {
+    background: var(--card);
+    padding: 24px;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 480px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+    color: var(--text);
+  }
+
+  #leadModal textarea {
+    font-family: inherit;
+    line-height: 1.5;
+  }
+
+  #leadModalContentWrapper button {
+    font-family: inherit;
+  }
+
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 2000;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .modal-overlay.active {
+    display: flex;
+  }
+
+  .modal-content {
+    background-color: var(--card);
+    padding: 24px 30px;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 400px;
+    color: var(--text);
+    text-align: center;
+  }
+
+  .modal-content input[type="text"],
+  .modal-content input[type="number"] {
+    padding: 10px;
+    border-radius: 8px;
+    border: none;
+    background: var(--bg-secondary);
+    color: var(--text);
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .modal-content input:focus {
+    outline: none;
+    border: 2px solid limegreen;
+    background: var(--bg-secondary);
+  }
+
+  .stage-tools {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+
+  .stage-column[draggable="true"] {
+    cursor: move;
+  }
+
+  .drop-indicator {
+    width: 4px;
+    background-color: var(--accent);
+    position: absolute;
+    height: 100%;
+    z-index: 1000;
+    pointer-events: none;
+  }
+
+  .pipeline-board-wrapper {
+    position: relative;
+  }
+
+  .drop-preview {
+    height: 4px;
+    background-color: limegreen;
+    margin-bottom: 6px;
+    border-radius: 2px;
+  }
+
+  .modal-title {
+    margin-top: 0;
+    margin-bottom: 20px;
+    font-size: 20px;
+    font-weight: bold;
+  }
+
+  .modal-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .modal-form input {
+    padding: 10px;
+    border-radius: 8px;
+    border: none;
+    background: var(--bg-secondary);
+    color: var(--text);
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .modal-form input:focus {
+    outline: none;
+    border: 2px solid limegreen;
+  }
+
+  .modal-actions {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 10px;
+  }
+
+  .dynamic-stages input {
+    padding: 8px;
+    border-radius: 8px;
+    background: var(--bg-secondary);
+    color: var(--text);
+    border: none;
+    margin-bottom: 8px;
+  }
+
+  .toggle-input {
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 2px solid var(--text);
+    background-color: var(--bg-secondary);
+    color: var(--text);
+    font-weight: bold;
+    font-size: 14px;
+    transition: all 0.3s ease;
+  }
+
+  .toggle-input::placeholder {
+    color: #888;
+  }
+
+  .toggle-input:focus {
+    outline: none;
+    border-color: limegreen;
+  }
+
+  /* base badge styling */
+  .done-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    background-color: limegreen;
+    color: white;
+    font-size: 14px;
+    border-radius: 50%;
+    cursor: default;
+    position: relative; /* scope hover overlay */
+    margin-left: 6px;
+  }
+  .done-badge:hover::after {
+    content: "❌";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: red;
+    color: white;
+    border-radius: 50%;
+  }
+
+  /* header‑specific wrapper */
+  .stage-header-with-badge {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-weight: bold;
+    margin-bottom: 10px;
+    color: var(--text);
+    margin-left: 6px;
+    /* no extra positioning needed here */
+  }
+</style>
+
+  <div style="margin-bottom: 20px;">
+    {% if request.user.groups.first.name == "Sales" %}
+  <div style="margin-bottom: 20px;">
+    <button onclick="showCreatePipelineModal()" class="toggle-btn">+ New Pipeline</button>
+  </div>
+{% endif %}
+  </div>
+  
+  {% if request.user.is_superuser %}
+  <form method="get" onchange="this.submit()" style="display: flex; gap: 10px; margin-bottom: 20px;">
+    <select name="agent_id" class="toggle-btn">
+      <option value="">-- Select Agent --</option>
+      {% for agent in all_agents %}
+        <option value="{{ agent.id }}" {% if agent.id|stringformat:"s" == selected_agent_id %}selected{% endif %}>{{ agent.username }}</option>
+      {% endfor %}
+    </select>
+  
+    <select name="selected_pipeline_id" class="toggle-btn">
+      <option value="">-- Select Pipeline --</option>
+      {% for p in pipelines %}
+        <option value="{{ p.id }}" {% if p.id == selected_pipeline_id %}selected{% endif %}>{{ p.name }}</option>
+      {% endfor %}
+    </select>
+  </form>
+  {% else %}
+  <form method="get" onchange="this.submit()">
+    <label for="pipeline_select">Choose pipeline:</label>
+    <select name="selected_pipeline_id" class="toggle-btn" id="pipeline_select">
+      {% for p in pipelines %}
+        <option value="{{ p.id }}" {% if p.id == selected_pipeline_id %}selected{% endif %}>{{ p.name }}</option>
+      {% endfor %}
+    </select>
+  </form>
+  {% endif %}
+  
+  {% if selected_pipeline %}
+  <h2>{{ selected_pipeline.name }}</h2>
+  
+  <!-- Delete button -->
+  <div style="position: fixed; bottom: 24px; right: 24px; z-index: 1000;">
+    <form method="POST" action="{% url 'delete_pipeline' selected_pipeline.id %}">
+      {% csrf_token %}
+      <button type="submit" class="toggle-btn" style="background: darkred; color: white; padding: 10px 18px; border-radius: 8px;">
+        Delete Pipeline
+      </button>
+    </form>
+  </div>
+  
+  <!-- Pipeline Board -->
+<div class="pipeline-board-wrapper">
+  <div class="pipeline-board" id="pipelineBoard" ondragover="allowColumnDrop(event)" ondrop="dropStageColumn(event)">
+    {% for stage in stages %}
+    {% with forloop.last as is_last %}
+    <div class="stage-column"
+         draggable="true"
+         ondragstart="startStageDrag(event, {{ stage.id }})"
+         ondragover="allowDrop(event)"
+         ondrop="dropLead(event, {{ stage.id }})"
+         data-stage-id="{{ stage.id }}">
+      <div class="stage-tools">
+        <div class="stage-header-with-badge">
+          <span class="stage-name">{{ stage.name }}</span>
+          {% for done_entry in stage.completed_entries.all %}
+          <span
+            class="done-badge"
+            title="Click to undo"
+            data-entry-id="{{ done_entry.id }}"
+            data-stage-id="{{ stage.id }}"
+          >✅</span>
+        {% endfor %}
+        </div>                               
+        <div>
+          <button onclick="showEditStageModal({{ stage.id }}, '{{ stage.name }}')" class="toggle-btn" style="padding: 2px 8px; font-size: 12px;">✎</button>
+          <button onclick="confirmDeleteStage({{ stage.id }})" class="toggle-btn" style="padding: 2px 8px; font-size: 12px;">🗑</button>
+          {% if is_last %}
+          <button onclick="showAddStageModal()" class="toggle-btn" style="padding: 2px 8px; font-size: 12px;">➕</button>
+          {% endif %}
+        </div>
+      </div>
+
+      {% for entry in stage.leadpipelineentry_set.all|dictsort:"added_at" %}
+  {% if entry.stage_id == stage.id %}
+    {% if request.user == entry.assigned_agent or request.user.is_superuser %}
+    <div class="lead-card" draggable="true" data-entry-id="{{ entry.id }}" ondragstart="startDrag(event, {{ entry.id }})" onclick="openLeadModalIfClicked({{ entry.id }})">
+      <strong>{{ entry.potential_customer.potential_customer_name }}</strong><br>
+      {{ entry.potential_customer.potential_customer_email }}<br>
+      <small>Added: {{ entry.added_at|date:"M d, Y" }}</small><br>
+      <small>In this stage: {{ entry.entered_stage_at|timesince }} ago</small>
+    </div>
+    {% endif %}
+  {% endif %}
+{% empty %}
+  <p>No leads yet.</p>
+{% endfor %}
+    </div>
+    {% endwith %}
+    {% endfor %}
+  </div>
+</div>
+  
+  <!-- Modals -->
+  <div id="leadModal">
+    <div id="leadModalContentWrapper">
+      <div class="flex justify-between items-center mb-6" style="display: flex; justify-content: space-between; align-items: center;">
+        <h2 class="text-xl font-bold m-0" style="margin: 0; font-size: 22px;">Lead Details</h2>
+        <button onclick="closeLeadModal()" style="font-size: 32px; font-weight: bold; background: none; border: none; color: var(--text); cursor: pointer;">&times;</button>
+      </div>
+      <div id="modalLeadContent"><div class="text-center text-gray-400">Loading...</div></div>
+    </div>
+  </div>
+  
+  <!-- Edit Stage Modal -->
+<div id="editStageModal" class="modal-overlay">
+    <div class="modal-content">
+      <h3 class="modal-title">Edit Stage</h3>
+      <form method="POST" action="{% url 'edit_stage' %}" class="modal-form">
+        {% csrf_token %}
+        <input type="hidden" name="stage_id" id="editStageId">
+        <input type="text" class= "toggle-btn" style="padding: 8px; border-radius: 6px; border: 1px solid #ccc;" name="stage_name" id="editStageName" placeholder="New stage name..." required />
+        <div class="modal-actions">
+          <button type="submit" class="toggle-btn">Save</button>
+          <button type="button" class="toggle-btn" onclick="hideEditStageModal()">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  
+  <!-- Add Stage Modal -->
+<div id="addStageModal" class="modal-overlay">
+    <div class="modal-content">
+      <h3 class="modal-title">Add New Stage</h3>
+      <form method="POST" action="{% url 'add_stage' %}" class="modal-form">
+        {% csrf_token %}
+        <input type="hidden" name="pipeline_id" value="{{ selected_pipeline.id }}">
+        <input type="text" class= "toggle-btn" style="padding: 8px; border-radius: 6px; border: 1px solid #ccc;" name="stage_name" placeholder="Stage name..." required />
+        <div class="modal-actions">
+          <button type="submit" class="toggle-btn">Add</button>
+          <button type="button" class="toggle-btn" onclick="hideAddStageModal()">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>   
+{% endif %}
+<!-- Create Pipeline Modal -->
+<div id="createPipelineModal" class="modal-overlay">
+  <div class="modal-content">
+    <h3 class="modal-title">Create New Pipeline</h3>
+    <form method="POST" action="{% url 'create_pipeline' %}" class="modal-form">
+      {% csrf_token %}
+      <input type="text" class= "toggle-btn" style="padding: 8px; border-radius: 6px; border: 1px solid #ccc;" name="pipeline_name" placeholder="Pipeline name..." required />
+      <input type="number" class= "toggle-btn" style="padding: 8px; border-radius: 6px; border: 1px solid #ccc;" name="stage_count" placeholder="Number of stages..." min="1" required />
+      <div id="stageNamesContainer" class="dynamic-stages"></div>
+      <div class="modal-actions">
+        <button type="submit" class="toggle-btn">Create</button>
+        <button type="button" class="toggle-btn" onclick="hideCreatePipelineModal()">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+    let draggedEntryId = null;
+    let draggedStageId = null;
+    let isDraggingColumn = false;
+    
+    let clickStartX = 0;
+    let clickStartY = 0;
+    let mouseMoved = false;
+    
+    // ==== DRAGGING LEADS ====
+    
+    function startDrag(event, entryId) {
+      if (isDraggingColumn) return;
+      draggedEntryId = entryId;
+      event.dataTransfer.setData("text/plain", entryId);
+      event.stopPropagation();
+    }    
+    
+    function allowDrop(event) {
+      if (isDraggingColumn) return;
+      event.preventDefault();
+    }
+    
+    function dropLead(event, stageId) {
+      if (isDraggingColumn) return;
+      event.preventDefault();
+      if (!draggedEntryId) return;
+    
+      fetch(`/pipeline/update-stage/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": "{{ csrf_token }}",
+        },
+        body: JSON.stringify({ entry_id: draggedEntryId, stage_id: stageId }),
+      }).then(res => {
+        if (res.ok) location.reload();
+      });
+    
+      draggedEntryId = null;
+    }
+    
+    function openLeadModalIfClicked(entryId) {
+      if (!mouseMoved) openLeadModal(entryId);
+    }
+    
+    document.addEventListener("mousedown", (e) => {
+      clickStartX = e.clientX;
+      clickStartY = e.clientY;
+      mouseMoved = false;
+    });
+    
+    document.addEventListener("mouseup", (e) => {
+      const distX = Math.abs(e.clientX - clickStartX);
+      const distY = Math.abs(e.clientY - clickStartY);
+      mouseMoved = distX > 5 || distY > 5;
+    });
+    
+    // ==== DRAGGING STAGES ====
+    
+    function startStageDrag(event, stageId) {
+      draggedStageId = stageId;
+      isDraggingColumn = true;
+      event.dataTransfer.setData("text/plain", stageId);
+    }
+    
+    function allowColumnDrop(event) {
+      event.preventDefault();
+      if (!isDraggingColumn) return;
+    
+      const board = document.getElementById("pipelineBoard");
+      const draggedColumn = document.querySelector(`.stage-column[data-stage-id="${draggedStageId}"]`);
+      const columns = Array.from(board.querySelectorAll(".stage-column"));
+    
+      document.querySelectorAll('.drop-preview').forEach(el => el.remove());
+    
+      let closestCol = null;
+      let closestDistance = Infinity;
+    
+      for (let col of columns) {
+        if (col === draggedColumn) continue;
+    
+        const rect = col.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const distance = Math.abs(event.clientX - centerX);
+    
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestCol = col;
+        }
+      }
+    
+      if (closestCol) {
+        const preview = document.createElement("div");
+        preview.className = "drop-preview";
+    
+        const rect = closestCol.getBoundingClientRect();
+        const offsetX = event.clientX - rect.left;
+    
+        if (offsetX < rect.width / 2) {
+          closestCol.parentNode.insertBefore(preview, closestCol);
+        } else {
+          closestCol.parentNode.insertBefore(preview, closestCol.nextSibling);
+        }
+      }
+    }
+    
+    function dropStageColumn(event) {
+      event.preventDefault();
+      if (!isDraggingColumn) return;
+    
+      const board = document.getElementById("pipelineBoard");
+      const draggedColumn = document.querySelector(`.stage-column[data-stage-id="${draggedStageId}"]`);
+      const dropPreview = document.querySelector(".drop-preview");
+    
+      if (dropPreview && draggedColumn) {
+        board.insertBefore(draggedColumn, dropPreview.nextSibling);
+      }
+    
+      const newOrder = [];
+      board.querySelectorAll(".stage-column").forEach((el, i) => {
+        newOrder.push({
+          stage_id: el.getAttribute("data-stage-id"),
+          order: i + 1
+        });
+      });
+    
+      fetch('/pipeline/update-stage-order/', {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": "{{ csrf_token }}",
+        },
+        body: JSON.stringify({ order: newOrder })
+      }).then(res => {
+        if (res.ok) location.reload();
+      });
+    
+      draggedStageId = null;
+      isDraggingColumn = false;
+      document.querySelectorAll('.drop-preview').forEach(el => el.remove());
+    }
+    
+    // ==== MODAL HANDLING ====
+    
+    function openLeadModal(entryId) {
+      const modal = document.getElementById("leadModal");
+      const modalContent = document.getElementById("modalLeadContent");
+    
+      modal.classList.add("show");
+      modalContent.innerHTML = "<div class='text-center text-gray-400'>Loading...</div>";
+    
+      fetch(`/pipeline/lead-detail/${entryId}/`)
+        .then(response => response.json())
+        .then(data => {
+          modalContent.innerHTML = `
+            <p><strong>Name:</strong> ${data.lead_name}</p>
+            <p><strong>Stage:</strong> ${data.stage}</p>
+            <p><strong>Note:</strong></p>
+            <textarea id="leadNoteTextarea" style="width: 100%; min-height: 120px;">${data.note || ''}</textarea>
+        
+            <div style="margin: 12px 0;">
+              <label>
+                <input type="checkbox" id="markAsDoneCheckbox" ${data.is_done ? 'checked' : ''} onclick="markAsDone(${entryId})">
+                Mark as Done
+              </label>
+            </div>
+        
+            <div style="margin-top: 15px; text-align: right;">
+              <button onclick="saveLeadNote(${entryId})" class="toggle-btn">Save Note</button>
+              <button onclick="removeLeadFromPipeline(${entryId})" class="toggle-btn" style="margin-left: 10px;">🗑 Remove</button>
+            </div>
+          `;
+        })
+        .catch(error => {
+          modalContent.innerHTML = `<div class="text-red-500">Error loading lead info</div>`;
+          console.error(error);
+        });
+    }
+    
+    function closeLeadModal() {
+      document.getElementById("leadModal").classList.remove("show");
+    }
+    
+    function saveLeadNote(entryId) {
+      const note = document.getElementById("leadNoteTextarea").value;
+    
+      fetch(`/pipeline/update-note/${entryId}/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "X-CSRFToken": "{{ csrf_token }}"
+        },
+        body: `note=${encodeURIComponent(note)}`
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.status === "success") {
+            closeLeadModal();
+          }
+        });
+    }
+    
+    function removeLeadFromPipeline(entryId) {
+      fetch(`/pipeline/remove-entry/${entryId}/`, {
+        method: "POST",
+        headers: {
+          "X-CSRFToken": "{{ csrf_token }}"
+        }
+      }).then(res => {
+        if (res.ok) {
+          closeLeadModal();
+          location.reload();
+        }
+      });
+    }
+    
+    // Close modal on background click
+    document.getElementById("leadModal").addEventListener("click", (e) => {
+      const wrapper = document.getElementById("leadModalContentWrapper");
+      if (!wrapper.contains(e.target)) {
+        closeLeadModal();
+      }
+    });
+
+    function showCreatePipelineModal() {
+        document.getElementById("createPipelineModal").classList.add("active");
+        setupDynamicStageInputs();
+    }
+    
+    function hideCreatePipelineModal() {
+        document.getElementById("createPipelineModal").classList.remove("active");
+    }
+
+    function setupDynamicStageInputs() {
+      const stageInput = document.querySelector('input[name="stage_count"]');
+      if (!stageInput) return;
+    
+      stageInput.addEventListener('input', function () {
+        const count = parseInt(this.value);
+        const container = document.getElementById('stageNamesContainer');
+        container.innerHTML = '';
+        if (!isNaN(count)) {
+          for (let i = 1; i <= count; i++) {
+            const input = document.createElement('input');
+            input.name = `stage_name_${i}`;
+            input.placeholder = `Stage ${i} name`;
+            input.required = true;
+            input.style = 'width: 100%; padding: 8px; margin-bottom: 10px; border-radius: 8px;';
+            container.appendChild(input);
+          }
+        }
+      });
+    }    
+
+      function confirmDeleteStage(stageId) {
+        fetch(`/pipeline/delete-stage/${stageId}/`, {
+          method: "POST",
+          headers: {
+            "X-CSRFToken": "{{ csrf_token }}",
+          }
+        }).then(res => {
+          if (res.ok) location.reload();
+        });
+      }      
+      
+      function showAddStageModal() {
+        document.getElementById("addStageModal").classList.add("active");
+      }
+      
+      function hideAddStageModal() {
+        document.getElementById("addStageModal").classList.remove("active");
+      }
+      
+      function showEditStageModal(stageId, stageName) {
+        document.getElementById("editStageId").value = stageId;
+        document.getElementById("editStageName").value = stageName;
+        document.getElementById("editStageModal").classList.add("active");
+      }
+      
+      function hideEditStageModal() {
+        document.getElementById("editStageModal").classList.remove("active");
+      }
+      
+      function markAsDone(entryId) {
+        fetch(`/pipeline/mark-done/${entryId}/`, {
+          method: "POST",
+          headers: {
+            "X-CSRFToken": "{{ csrf_token }}"
+          }
+        }).then(res => res.json())
+          .then(data => {
+            if (data.status === "moved_to_next") {
+              location.reload();
+            } else if (data.status === "final_stage") {
+              closeLeadModal();
+              location.reload();
+            }
+          });
+      }
+      
+      function undoDoneStatus(event, entryId) {
+        event.stopPropagation();
+        fetch(`/pipeline/mark-not-done/${entryId}/`, {
+          method: 'POST',
+          headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+        }).then(res => {
+          if (res.ok) location.reload();
+        });
+      }
+
+      document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('.done-badge').forEach(badge => {
+          badge.style.cursor = 'pointer';
+          badge.addEventListener('click', e => {
+            e.stopPropagation();  // don’t open the lead modal
+      
+            // hit your undo endpoint
+            fetch(`/pipeline/mark-undone/${badge.dataset.entryId}/`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+              },
+              body: JSON.stringify({ stage_id: badge.dataset.stageId })
+            }).finally(() => {
+              // refresh regardless of success/failure
+              location.reload();
+            });
+          });
+        });
+      });
+      
+    </script>              
+    {% endblock %}

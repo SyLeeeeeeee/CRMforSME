@@ -1,0 +1,202 @@
+{% extends "accounts/base.html" %}
+{% load tz %}
+
+{% block header %}Reports{% endblock %}
+{% block content %}
+
+<style>
+
+  .report-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    justify-content: flex-start;    /* LEFT align */
+    align-items: flex-end;
+    margin-bottom: 1rem;
+  }
+
+  /* each field is 200px wide, not flex-stretching */
+  .report-form > div {
+    flex: 0 0 200px;
+  }
+
+  .report-form input,
+  .report-form select,
+  .report-form button {
+    font-weight: normal;
+    padding: 8px 12px;
+    border: 2px solid var(--accent);
+    border-radius: 10px;
+    background: var(--card);
+    color: var(--text);
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .report-form button {
+    cursor: pointer;
+  }
+
+  .report-desc {
+    margin: 0.5rem 0 1rem;
+    font-style: italic;
+    color: var(--text-secondary);
+  }
+
+  .report-results {
+    background: var(--card);
+    border-radius: 10px;
+    padding: 1.5rem;
+  }
+  .report-results h2 {
+    margin-top: 0;
+  }
+</style>
+
+<form method="get" class="report-form">
+  <div>
+    {{ form.start_date.label_tag }}<br>
+    {{ form.start_date }}
+  </div>
+  <div>
+    {{ form.end_date.label_tag }}<br>
+    {{ form.end_date }}
+  </div>
+  <div>
+    {{ form.group.label_tag }}<br>
+    {{ form.group }}
+  </div>
+  <div>
+    {{ form.agent.label_tag }}<br>
+    {{ form.agent }}
+  </div>
+  <div>
+    {{ form.report_type.label_tag }}<br>
+    {{ form.report_type }}
+  </div>
+  <div style="flex:0 0 auto;">
+    <button type="submit">Run Report</button>
+  </div>
+</form>
+
+{% if description %}
+  <p class="report-desc">{{ description }}</p>
+{% endif %}
+
+{% if data is not None %}
+  <div class="report-results">
+
+    {% if form.cleaned_data.report_type == 'tickets_volume' %}
+      <h2>Tickets Volume Over Time</h2>
+      {% if data %}
+        <ul>
+          {% for row in data %}
+            <li>{{ row.day|date:"M j, Y" }}: {{ row.count }} tickets</li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p>No tickets opened in this date range.</p>
+      {% endif %}
+
+    {% elif form.cleaned_data.report_type == 'avg_resolution' %}
+      <h2>Average Ticket Resolution Time</h2>
+      {% if data %}
+        <p>{{ data }}</p>
+      {% else %}
+        <p>No tickets were resolved in this date range.</p>
+      {% endif %}
+
+    {% elif form.cleaned_data.report_type == 'pipeline_value' %}
+      <h2>Pipeline Total Value</h2>
+      {% if data %}
+        <p>{{ data }} leads added</p>
+      {% else %}
+        <p>No leads added to any pipeline in this date range.</p>
+      {% endif %}
+
+    {% elif form.cleaned_data.report_type == 'pipeline_conversion' %}
+      <h2>Pipeline Conversion Rates</h2>
+      {% if data.total %}
+        <p>{{ data.won }} of {{ data.total }} leads won ({{ data.percent|floatformat:1 }}%)</p>
+      {% else %}
+        <p>No leads entered in this date range.</p>
+      {% endif %}
+
+    {% elif form.cleaned_data.report_type == 'meetings_scheduled' %}
+      <h2>Meetings Scheduled</h2>
+      {% if data %}
+        <ul>
+          {% for row in data %}
+            <li>{{ row.day|date:"M j, Y" }}: {{ row.count }} meetings</li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p>No meetings scheduled in this date range.</p>
+      {% endif %}
+
+    {% elif form.cleaned_data.report_type == 'meetings_attendance' %}
+      <h2>Meeting Attendance Rate</h2>
+
+      {% if form.cleaned_data.agent %}
+        {# per-agent breakdown #}
+        {% if data.total %}
+          <p>
+            ✅ Yes: {{ data.yes }}<br>
+            ❌ No:  {{ data.no }}<br>
+            ❔ Maybe: {{ data.maybe }}<br>
+            <strong>Attendance Rate:</strong> {{ data.percent|floatformat:1 }}%
+          </p>
+        {% else %}
+          <p>No RSVPs by this agent in the selected range.</p>
+        {% endif %}
+      {% else %}
+        {# global average-per-meeting #}
+        {% if data.num_meetings %}
+          <p>
+            Average “Yes” RSVP rate:<br>
+            {{ data.avg_percent|floatformat:1 }}%
+            <small>(across {{ data.num_meetings }} meetings)</small>
+          </p>
+        {% else %}
+          <p>No meetings scheduled in this date range.</p>
+        {% endif %}
+      {% endif %}
+
+    {% elif form.cleaned_data.report_type == 'customers_new' %}
+      <h2>New Customers</h2>
+      {% if data %}
+        <p>{{ data }} customers joined</p>
+      {% else %}
+        <p>No new customers added in this date range.</p>
+      {% endif %}
+
+    {% else %}
+      <pre>{{ data }}</pre>
+    {% endif %}
+
+  </div>
+{% endif %}
+
+<script>
+  // reload agents on dept change
+  document.getElementById('id_group').addEventListener('change', function() {
+    fetch("{% url 'ajax_users_by_groups' %}?group_ids=" + this.value)
+      .then(r => r.json())
+      .then(users => {
+        const sel = document.getElementById('id_agent');
+        sel.innerHTML = '<option value="">All Agents</option>';
+        users.forEach(u => sel.appendChild(new Option(u.full_name, u.id)));
+      });
+  });
+
+  // click-anywhere to open datepicker
+  document.querySelectorAll('input[type="date"]').forEach(inp => {
+    inp.addEventListener('click', () => {
+      if (typeof inp.showPicker === 'function') {
+        inp.showPicker();
+      }
+    });
+  });
+</script>
+
+{% endblock %}

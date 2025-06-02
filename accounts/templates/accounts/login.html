@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Login | CRM</title>
+    <style>
+        :root {
+            --bg: #ffffff;
+            --text: #333333;
+            --card: #ffffff;
+            --accent: #4ec46e;
+            --neutral-hover: #45a049;
+            --hover-glow: 0 0 8px rgba(0, 0, 0, 0.2);
+        }
+
+        body.dark {
+            --bg: #1e1e1e;
+            --text: #f0f0f0;
+            --card: #2c2c2c;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.3s, color 0.3s;
+        }
+
+        .login-container {
+            background-color: var(--card);
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        h2 {
+            margin-bottom: 25px;
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        form div {
+            margin-bottom: 15px;
+            text-align: left;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        input[type="text"],
+        input[type="password"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-sizing: border-box;
+            background-color: var(--bg);
+            color: var(--text);
+        }
+
+        button[type="submit"] {
+            padding: 12px;
+            background-color: var(--accent);
+            color: #fff;
+            font-weight: bold;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: background 0.3s;
+        }
+
+        button[type="submit"]:hover {
+            background-color: var(--neutral-hover);
+        }
+
+        .toggle-mode {
+            margin-top: 20px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            color: var(--text);
+            border-radius: 5px;
+            padding: 10px 20px;
+            transition: color 0.3s, box-shadow 0.3s;
+        }
+
+        .toggle-mode:hover {
+            box-shadow: 0 0 8px #ccc, 0 0 5px var(--accent);
+        }
+
+        .error {
+            color: red;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <h2>CRM Login</h2>
+        <form method="post">
+            {% csrf_token %}
+            <div>
+                <label for="id_username">Username:</label>
+                <input type="text" name="username" id="id_username" required>
+            </div>
+            <div>
+                <label for="id_password">Password:</label>
+                <input type="password" name="password" id="id_password" required>
+            </div>
+            <button type="submit">Login</button>
+        </form>
+
+        {% if form.errors %}
+            <div class="error">Invalid credentials, try again.</div>
+        {% endif %}
+
+        <button class="toggle-mode" onclick="toggleMode()" id="modeToggle">Dark Mode</button>
+    </div>
+
+    <script>
+        // Apply stored theme on page load
+        window.onload = () => {
+            const darkMode = localStorage.getItem('darkMode');
+            const body = document.body;
+            const btn = document.getElementById("modeToggle");
+            if (darkMode === 'enabled') {
+                body.classList.add('dark');
+                if (btn) btn.textContent = 'Light Mode';
+            }
+        };
+
+        function toggleMode() {
+            const body = document.body;
+            const btn = document.getElementById("modeToggle");
+            const isDark = body.classList.toggle('dark');
+            localStorage.setItem('darkMode', isDark ? 'enabled' : 'disabled');
+            if (btn) btn.textContent = isDark ? 'Light Mode' : 'Dark Mode';
+        }
+    </script>
+</body>
+</html>

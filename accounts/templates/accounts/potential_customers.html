@@ -1,0 +1,190 @@
+{% extends 'accounts/base.html' %}
+{% block title %}Leads | CRM{% endblock %}
+{% block header %}Potential Customers{% endblock %}
+
+{% block content %}
+<style>
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        background-color: var(--card);
+        border-radius: 10px;
+        overflow: hidden;
+    }
+
+    th, td {
+        padding: 10px;
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    thead {
+        background-color: var(--accent);
+        color: white;
+    }
+
+    tr {
+        border-bottom: 1px solid #eee;
+    }
+
+    .dropdown-container {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+        align-items: center;
+    }
+
+    select {
+        padding: 6px 10px;
+        border-radius: 8px;
+        border: 1px solid var(--accent);
+        background-color: var(--bg-secondary);
+        color: var(--text);
+        transition: 0.2s ease;
+    }
+
+    select:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 5px var(--accent);
+    }
+
+    .actions-btns {
+        display: flex;
+        gap: 6px;
+        justify-content: center;
+    }
+
+    .btn-outline {
+        padding: 6px 14px;
+        border: 2px solid var(--accent);
+        background-color: transparent;
+        color: black;  /* <- force black text */
+        font-weight: bold;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background-color 0.3s ease, color 0.3s ease;
+        text-decoration: none;  /* <- remove underline */
+        display: inline-block;
+    }    
+
+    .btn-outline:hover {
+        background-color: var(--accent);
+        color: white;
+    }
+</style>
+
+<div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+    <form method="GET" style="display: flex; gap: 10px;">
+        <input type="text" class= "toggle-btn" name="q" placeholder="Search by name, email, source..." value="{{ request.GET.q }}"
+            style="padding: 8px; border-radius: 6px; border: 1px solid #ccc;">
+        <button type="submit" class="toggle-btn">Search</button>
+        <select name="assigned_filter" onchange="this.form.submit()" style="padding: 6px 10px; border-radius: 8px; border: 1px solid var(--accent); background-color: var(--bg-secondary); color: var(--text);">
+            <option value="">All</option>
+            <option value="true" {% if request.GET.assigned_filter == 'true' %}selected{% endif %}>Assigned</option>
+            <option value="false" {% if request.GET.assigned_filter == 'false' %}selected{% endif %}>Unassigned</option>
+        </select>
+    </form>
+    <a href="{% url 'add_potential_customer' %}" class="toggle-btn">+ Add Lead</a>
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Phone</th>
+            <th>Source</th>
+            <th>Submitted</th>
+            <th>Status</th>
+            <th>Agent</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% if leads %}
+            {% for lead in leads %}
+            <tr>
+                <td>{{ lead.potential_customer_name }}</td>
+                <td>{{ lead.potential_customer_email }}</td>
+                <td>{{ lead.potential_customer_phone }}</td>
+                <td>{{ lead.potential_customer_source }}</td>
+                <td>{{ lead.potential_customer_submitted_at }}</td>
+
+                <!-- STATUS -->
+                <td>
+                    <form method="POST" action="{% url 'edit_lead_status' lead.pk %}?assigned_filter={{ request.GET.assigned_filter }}">
+                        {% csrf_token %}
+                        <input type="hidden" name="form_type" value="status">
+                        <select name="potential_customer_status" onchange="this.form.submit()">
+                            {% for status, label in lead.STATUS_CHOICES %}
+                                <option value="{{ status }}" {% if lead.potential_customer_status == status %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </form>
+                </td>
+
+                <!-- AGENT -->
+                <td>
+                    <form method="POST" action="{% url 'edit_lead_status' lead.pk %}?assigned_filter={{ request.GET.assigned_filter }}">
+                        {% csrf_token %}
+                        <input type="hidden" name="form_type" value="agent">
+                        <select name="assigned_agent" onchange="this.form.submit()">
+                            <option value="">Unassigned</option>
+                            {% for user in users %}
+                                <option value="{{ user.id }}" {% if lead.assigned_agent and lead.assigned_agent.id == user.id %}selected{% endif %}>
+                                    {{ user.username }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </form>
+                </td>
+
+                <!-- ACTIONS -->
+                <td class="actions-btns">
+                    <a href="{% url 'convert_lead' lead.pk %}" class="toggle-btn">Convert</a>
+                    <a href="{% url 'mark_lead_as_dead' lead.pk %}" class="toggle-btn">Mark Dead</a>
+                    {% if request.user.groups.all.0.name == "Sales" %}
+                    {% if lead.assigned_agent == request.user or request.user.is_superuser %}
+                        <a href="#" class="toggle-btn" onclick="openPipelineModal({{ lead.pk }})">+ Pipeline</a>
+                    {% endif %}
+                {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        {% else %}
+            <tr>
+                <td colspan="8" style="padding: 12px; text-align: center;">No potential customers found.</td>
+            </tr>
+        {% endif %}
+    </tbody>    
+</table>
+<div id="pipelineSelectModal" class="modal-overlay">
+    <div class="modal-content">
+      <h3>Select Pipeline</h3>
+      <form method="POST" id="pipelineSelectForm" action="{% url 'add_lead_to_selected_pipeline' %}">
+        {% csrf_token %}
+        <input type="hidden" name="lead_id" id="pipelineLeadId">
+        <select name="pipeline_id" required style="margin-top: 10px;">
+          {% for pipeline in pipelines %}
+          <option value="{{ pipeline.id }}">{{ pipeline.name }}</option>
+          {% endfor %}
+        </select>
+        <div style="margin-top: 16px; display: flex; justify-content: center; gap: 10px;">
+          <button type="submit" class="toggle-btn">Add</button>
+          <button type="button" onclick="hidePipelineModal()" class="toggle-btn">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div> 
+  <script>
+    function openPipelineModal(leadId) {
+      document.getElementById("pipelineLeadId").value = leadId;
+      document.getElementById("pipelineSelectModal").classList.add("active");
+    }
+    
+    function hidePipelineModal() {
+      document.getElementById("pipelineSelectModal").classList.remove("active");
+    }
+    </script>    
+{% endblock %}

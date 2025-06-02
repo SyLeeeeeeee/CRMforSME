@@ -1,0 +1,80 @@
+{% extends 'accounts/base.html' %}
+{% block title %}Customers | CRM{% endblock %}
+{% block header %}Customers{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+    <form method="GET" style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <select name="search_by" class= "toggle-btn" style="padding: 8px; border-radius: 6px; border: 1px solid #ccc;">
+            <option value="customer_id" {% if search_by == 'customer_id' %}selected{% endif %}>Customer ID</option>
+            <option value="name" {% if search_by == 'name' %}selected{% endif %}>Name</option>
+            <option value="email" {% if search_by == 'email' %}selected{% endif %}>Email</option>
+            <option value="phone" {% if search_by == 'phone' %}selected{% endif %}>Phone</option>
+            <option value="company" {% if search_by == 'company' %}selected{% endif %}>Company</option>
+        </select>
+        <input type="text" class= "toggle-btn" name="q" placeholder="Search..." value="{{ query }}"
+            style="padding: 8px; border-radius: 6px; border: 1px solid #ccc;">
+        <button type="submit" class="toggle-btn">Search</button>
+    </form>
+    <a href="{% url 'customer_add' %}" class="toggle-btn">+ Add Customer</a>
+</div>
+
+<table style="width: 100%; border-collapse: collapse; background-color: var(--card); border-radius: 10px; overflow: hidden;">
+    <thead style="background-color: var(--accent); color: white; text-align: center;">
+        <tr>
+            <th style="padding: 12px;">ID</th>
+            <th style="padding: 12px;">Name</th>
+            <th style="padding: 12px;">Email</th>
+            <th style="padding: 12px;">Phone</th>
+            <th style="padding: 12px;">Company</th>
+            <th style="padding: 12px;">Status</th>
+            <th style="padding: 12px;">Actions</th>
+        </tr>
+    </thead>
+    <tbody style="text-align: center;">
+        {% for c in customers %}
+            <tr style="border-bottom: 1px solid #eee;">
+                <td style="padding: 12px;">{{ c.id }}</td>
+                <td style="padding: 12px;">{{ c.customer_name }} {{ c.customer_surname }}</td>
+                <td style="padding: 12px;">{{ c.customer_email }}</td>
+                <td style="padding: 12px;">{{ c.customer_phone }}</td>
+                <td style="padding: 12px;">{{ c.customer_company }}</td>
+                <td style="padding: 12px;">{{ c.customer_status }}</td>
+                <td style="padding: 12px;">
+                    <a href="{% url 'customer_edit' c.pk %}" class="toggle-btn" style="padding: 4px 10px;">Edit</a>
+                    {% if request.user.is_superuser %}
+                        <a href="{% url 'customer_delete' c.pk %}" class="toggle-btn" style="padding: 4px 10px; margin-left: 5px;">Delete</a>
+                    {% endif %}
+                </td>                
+            </tr>
+        {% empty %}
+            <tr>
+                <td colspan="7" style="padding: 15px; text-align: center;">No customers found.</td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!--Pagination-->
+{% if page_obj.has_other_pages %}
+<div style="margin-top: 20px; text-align: center;">
+    <div class="pagination">
+        {% if page_obj.has_previous %}
+            <a href="?q={{ query }}&search_by={{ search_by }}&page={{ page_obj.previous_page_number }}" class="toggle-btn">&laquo; Prev</a>
+        {% endif %}
+
+        {% for num in page_obj.paginator.page_range %}
+            {% if page_obj.number == num %}
+                <span class="toggle-btn" style="background-color: var(--accent); color: white;">{{ num }}</span>
+            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                <a href="?q={{ query }}&search_by={{ search_by }}&page={{ num }}" class="toggle-btn">{{ num }}</a>
+            {% endif %}
+        {% endfor %}
+
+        {% if page_obj.has_next %}
+            <a href="?q={{ query }}&search_by={{ search_by }}&page={{ page_obj.next_page_number }}" class="toggle-btn">Next &raquo;</a>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

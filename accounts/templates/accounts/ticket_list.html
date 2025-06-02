@@ -1,0 +1,230 @@
+{% extends 'accounts/base.html' %}
+{% block title %}Tickets | CRM{% endblock %}
+{% block header %}Tickets{% endblock %}
+
+{% block content %}
+
+<style>
+    .status-badge {
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-weight: bold;
+        font-size: 13px;
+        display: inline-block;
+        color: white;
+    }
+    .status-open { background-color: #e74c3c; }
+    .status-resolved { background-color: #2ecc71; }
+    .status-in-progress { background-color: #3498db; }
+    .status-waiting { background-color: #f39c12; }
+
+    .dropdown-container {
+        position: relative;
+        display: inline-block;
+    }
+    .dropdown-input {
+        padding: 8px 12px;
+        border-radius: 10px;
+        border: 2px solid var(--accent);
+        width: 200px;
+        font-weight: normal;
+        background: var(--card);
+        color: var(--text);
+    }
+    .dropdown-list {
+        position: absolute;
+        z-index: 10;
+        top: 110%;
+        left: 0;
+        width: 100%;
+        background: var(--card);
+        border: 2px solid var(--accent);
+        border-radius: 10px;
+        max-height: 180px;
+        overflow-y: auto;
+        display: none;
+    }
+    .dropdown-item {
+        padding: 8px 12px;
+        cursor: pointer;
+        color: var(--text);
+    }
+    .dropdown-item:hover {
+        background-color: var(--accent);
+        color: white;
+    }
+</style>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const input = document.getElementById("assignee-input");
+        const list = document.getElementById("assignee-dropdown");
+        const items = list.querySelectorAll(".dropdown-item");
+        const form = document.getElementById("filter-form");
+
+        input.addEventListener("focus", () => {
+            list.style.display = "block";
+        });
+
+        input.addEventListener("input", () => {
+            const val = input.value.toLowerCase();
+            let match = false;
+            items.forEach(item => {
+                if (item.textContent.toLowerCase().startsWith(val)) {
+                    item.style.display = "block";
+                    match = true;
+                } else {
+                    item.style.display = "none";
+                }
+            });
+            list.style.display = match ? "block" : "none";
+        });
+
+        items.forEach(item => {
+            item.addEventListener("click", () => {
+                const selected = item.textContent.trim();
+                input.value = (selected === "All Agents") ? "" : selected;
+                list.style.display = "none";
+                form.submit();
+            });
+        });
+
+        document.addEventListener("click", (e) => {
+            if (!input.contains(e.target) && !list.contains(e.target)) {
+                list.style.display = "none";
+            }
+        });
+    });
+</script>
+
+<div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+    <form method="GET" id="filter-form" style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <!-- Status -->
+        <select name="status" class="toggle-btn" style="font-weight: normal;" onchange="this.form.submit()">
+            <option value="" {% if not selected_status %}selected{% endif %}>All Statuses</option>
+            <option value="Open" {% if selected_status == 'Open' %}selected{% endif %}>Open</option>
+            <option value="Resolved" {% if selected_status == 'Resolved' %}selected{% endif %}>Resolved</option>
+            <option value="In Progress" {% if selected_status == 'In Progress' %}selected{% endif %}>In Progress</option>
+            <option value="Waiting on Customer" {% if selected_status == 'Waiting on Customer' %}selected{% endif %}>Waiting on Customer</option>
+        </select>
+
+        <!-- Priority -->
+        <select name="priority" class="toggle-btn" style="font-weight: normal;" onchange="this.form.submit()">
+            <option value="" {% if not selected_priority %}selected{% endif %}>All Priorities</option>
+            <option value="High" {% if selected_priority == 'High' %}selected{% endif %}>High</option>
+            <option value="Medium" {% if selected_priority == 'Medium' %}selected{% endif %}>Medium</option>
+            <option value="Low" {% if selected_priority == 'Low' %}selected{% endif %}>Low</option>
+        </select>
+
+                <!-- Agent Search Dropdown -->
+        <div class="dropdown-container" style="width: 160px;">
+            <input type="text" name="assignee" id="assignee-input" placeholder="Assigned agent"
+                value="{{ selected_assignee }}" class="toggle-btn"  
+                style="width: 100%; height: 42px; padding: 8px 12px; border-radius: 10px; border: 2px solid var(--accent); font-weight: normal;">
+                <div id="assignee-dropdown" class="dropdown-list" style="width: 100%;">
+                    <div class="dropdown-item">All Agents</div>
+                    <div class="dropdown-item">Unassigned</div>
+                    {% for agent in assignees %}
+                        <div class="dropdown-item">{{ agent }}</div>
+                    {% endfor %}
+                </div>        
+        </div>
+
+                    <!-- Created Date Sorting -->
+                    <select name="created_sort" class="toggle-btn" style="font-weight: normal;" onchange="this.form.submit()">
+                        <option value="" {% if selected_sort_created == '' %}selected{% endif %}>Sort by Created</option>
+                        <option value="newest" {% if selected_sort_created == 'newest' %}selected{% endif %}>Newest First</option>
+                        <option value="oldest" {% if selected_sort_created == 'oldest' %}selected{% endif %}>Oldest First</option>
+                    </select>
+            
+                    <!-- Updated Date Sort -->
+            <select name="sort_updated" class="toggle-btn" style="font-weight: normal;" onchange="this.form.submit()">
+                <option value="">Sort by Updated</option>
+                <option value="newest" {% if selected_sort_updated == 'newest' %}selected{% endif %}>Last Edited (Newest)</option>
+                <option value="oldest" {% if selected_sort_updated == 'oldest' %}selected{% endif %}>Last Edited (Oldest)</option>
+            </select>
+
+        <!-- Search Field + Type Selector -->
+<div style="display: flex; gap: 10px;">
+    <select name="search_by" class="toggle-btn" style="font-weight: normal;">
+        <option value="ticket_id" {% if search_by == "ticket_id" %}selected{% endif %}>Ticket ID</option>
+        <option value="customer_name" {% if search_by == "customer_name" %}selected{% endif %}>Customer Name</option>
+        <option value="customer_email" {% if search_by == "customer_email" %}selected{% endif %}>Customer Email</option>
+        <option value="customer_phone" {% if search_by == "customer_phone" %}selected{% endif %}>Customer Phone</option>
+        <option value="customer_id" {% if search_by == "customer_id" %}selected{% endif %}>Customer ID</option>
+    </select>
+
+    <input type="text" name="q" placeholder="Enter search query..."
+        value="{{ query }}" class="toggle-btn"
+        style="width: 300px; font-weight: normal; padding: 8px 12px; border-radius: 10px; border: 2px solid var(--accent);">
+</div>
+
+
+        <!-- Button -->
+        <button type="submit" class="toggle-btn">Search</button>
+    </form>
+    <a href="{% url 'add_ticket' %}" class="toggle-btn">+ New Ticket</a>
+</div>
+
+<table style="width: 100%; border-collapse: collapse; background-color: var(--card); border-radius: 10px; overflow: hidden;">
+    <thead style="background-color: var(--accent); color: white;">
+        <tr>
+            <th style="padding: 10px;">Ticket ID</th>
+            <th style="padding: 10px;">Title</th>
+            <th style="padding: 10px;">Customer</th>
+            <th style="padding: 10px;">Priority</th>
+            <th style="padding: 10px;">Status</th>
+            <th style="padding: 10px;">Assignee</th>
+            <th style="padding: 10px;">Submitted</th>
+            <th style="padding: 10px;">Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for ticket in page_obj %}
+        <tr style="text-align: center; border-bottom: 1px solid #eee; background-color: var(--card); color: var(--text);">
+            <td style="padding: 10px;">{{ ticket.id }}</td>
+            <td style="padding: 10px;">{{ ticket.subject|default:"-" }}</td>
+            <td style="padding: 10px;">{{ ticket.customer.customer_name|default:"-" }}<br>{{ ticket.customer.customer_surname|default:"-" }}</td>
+            <td style="padding: 10px;">{{ ticket.priority|default:"-" }}</td>
+            <td style="padding: 10px;">
+                {% if ticket.status == "Open" %}
+                    <span class="status-badge status-open">Open</span>
+                {% elif ticket.status == "Resolved" %}
+                    <span class="status-badge status-resolved">Resolved</span>
+                {% elif ticket.status == "In Progress" %}
+                    <span class="status-badge status-in-progress">In Progress</span>
+                {% elif ticket.status == "Waiting on Customer" %}
+                    <span class="status-badge status-waiting">Waiting</span>
+                {% else %}
+                    <span class="status-badge" style="background-color: gray;">Unknown</span>
+                {% endif %}
+            </td>
+            <td style="padding: 10px;">{{ ticket.assignee|default:"-" }}</td>
+            <td style="padding: 10px;">{{ ticket.created_date|date:"F j, Y, g:i a"|default:"-" }}</td>
+            <td style="padding: 10px;"><a href="{% url 'ticket_detail' ticket.id %}" class="toggle-btn">Open</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" style="padding: 12px; text-align: center;">No tickets found.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<div style="margin-top: 20px; text-align: center;">
+    <div class="pagination">
+        {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}&q={{ query }}" class="toggle-btn">&laquo; Prev</a>
+        {% endif %}
+        {% for num in page_obj.paginator.page_range %}
+            {% if page_obj.number == num %}
+                <span class="toggle-btn" style="background-color: var(--accent); color: white;">{{ num }}</span>
+            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                <a href="?page={{ num }}&q={{ query }}" class="toggle-btn">{{ num }}</a>
+            {% endif %}
+        {% endfor %}
+        {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}&q={{ query }}" class="toggle-btn">Next &raquo;</a>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}

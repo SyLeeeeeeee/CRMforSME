@@ -1,0 +1,46 @@
+{% extends 'accounts/base.html' %}
+{% block title %}{{ action }} Customer | CRM{% endblock %}
+{% block header %}{{ action }} Customer{% endblock %}
+
+{% block content %}
+<form method="POST" style="max-width: 500px; margin: auto; background-color: var(--card); padding: 30px; border-radius: 10px;">
+    {% csrf_token %}
+    <div style="display: flex; flex-direction: column; gap: 15px;">
+
+        <label>First Name</label>
+        <input type="text" name="customer_name" value="{{ customer.customer_name|default:'' }}" required
+               style="padding: 10px; border-radius: 6px; border: 1px solid #ccc;">
+
+        <label>Last Name</label>
+        <input type="text" name="customer_surname" value="{{ customer.customer_surname|default:'' }}" required
+               style="padding: 10px; border-radius: 6px; border: 1px solid #ccc;">
+
+        <label>Email</label>
+        <input type="email" name="customer_email" value="{{ customer.customer_email|default:'' }}" required
+               style="padding: 10px; border-radius: 6px; border: 1px solid #ccc;">
+
+        <label>Phone</label>
+        <input type="text" name="customer_phone" value="{{ customer.customer_phone|default:'' }}"
+               style="padding: 10px; border-radius: 6px; border: 1px solid #ccc;">
+
+        <label>Company</label>
+        <input type="text" name="customer_company" value="{{ customer.customer_company|default:'' }}"
+               style="padding: 10px; border-radius: 6px; border: 1px solid #ccc;">
+
+        <label>Address</label>
+        <input type="text" name="customer_address" value="{{ customer.customer_address|default:'' }}"
+               style="padding: 10px; border-radius: 6px; border: 1px solid #ccc;">
+
+        <label>Status</label>
+        <select name="customer_status" style="padding: 10px; border-radius: 6px; border: 1px solid #ccc;">
+            <option value="Active" {% if customer.customer_status == "Active" %}selected{% endif %}>Active</option>
+            <option value="Inactive" {% if customer.customer_status == "Inactive" %}selected{% endif %}>Inactive</option>
+        </select>
+    </div>
+
+    <div style="display: flex; justify-content: center; gap: 10px; margin-top: 20px;">
+        <button type="submit" class="toggle-btn" style="padding: 10px 30px;">Done</button>
+        <a href="{% url 'customer_list' %}" class="toggle-btn" style="padding: 10px 30px; text-align: center;">Back</a>
+    </div>    
+</form>
+{% endblock %}
